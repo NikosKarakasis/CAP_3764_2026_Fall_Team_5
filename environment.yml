@@ -1,0 +1,19 @@
+# Conda environment for CAP 3764 Team 5 – Seoul Bike Sharing Demand
+# Create:   conda env create -f environment.yml
+# Activate: conda activate cap3764-team5
+# Update:   conda env update -f environment.yml --prune
+name: cap3764-team5
+channels:
+  - conda-forge
+dependencies:
+  - python=3.14
+  # Data handling
+  - pandas>=3.0
+  - numpy
+  # Visualization
+  - matplotlib
+  - seaborn
+  - plotly
+  # Notebooks
+  - jupyterlab
+  - ipykernel

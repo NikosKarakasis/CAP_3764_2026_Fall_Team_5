@@ -13,6 +13,7 @@ dependencies:
   # Visualization
   - matplotlib
   - seaborn
+  - plotly
   # Notebooks
   - jupyterlab
   - ipykernel

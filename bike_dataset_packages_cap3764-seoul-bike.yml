@@ -2,7 +2,7 @@
 # Create:   conda env create -f environment.yml
 # Activate: conda activate cap3764-team5-seoul-bike
 # Update:   conda env update -f environment.yml --prune
-name: bike_dataset_packages_(cap3764-seoul-bike)
+name: bike_dataset_packages_cap3764-seoul-bike
 channels:
   - conda-forge
 dependencies:

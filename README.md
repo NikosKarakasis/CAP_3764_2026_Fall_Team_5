@@ -11,23 +11,23 @@ The project uses the Seoul Bike Sharing Demand dataset, which contains 8,760 hou
 ├── data/
 │   └── SeoulBikeData.csv              # raw dataset
 ├── my_modules/
-│   ├── data_collection_module.py      # data loading/renaming + IQR outlier limits
+│   ├── data_loader.py                 # data loading + column renaming
+│   ├── lower_upper_limits.py          # IQR (Tukey's fences) outlier limits
 │   └── feature_engineering.py         # time-series feature builder (lags, rolling means, calendar)
 ├── notebooks/
 │   ├── 01_eda.ipynb                   # cleaning and exploratory data analysis
-│   ├── 02_modeling.ipynb              # initial modeling notebook
 │   └── 02_time_series_modeling.ipynb  # time-series forecasting + SHAP interpretation
-├── environment.yml                    # Conda environment
+├── bike_dataset_packages_cap3764-seoul-bike.yml  # Conda environment
 └── README.md
 ```
 
 ## Setup
 ```bash
-conda env create -f environment.yml
-conda activate cap3764-team5
+conda env create -f bike_dataset_packages_cap3764-seoul-bike.yml
+conda activate bike_dataset_packages_cap3764-seoul-bike
 jupyter lab
 ```
-The environment includes the modeling libraries used in the notebooks: `scikit-learn` 1.9.1, `xgboost` 3.4.1, and `shap` 0.54.1. If you created the environment before these were added, run `conda env update -f environment.yml --prune`.
+The environment includes the modeling libraries used in the notebooks: `scikit-learn` 1.9.1, `xgboost` 3.4.1, and `shap` 0.54.1. If you created the environment before these were added, run `conda env update -f bike_dataset_packages_cap3764-seoul-bike.yml --prune`.
 
 ## Data Preparation
 `load_seoul_bike_data`:
@@ -39,7 +39,7 @@ Initial checks found 0 missing values and 0 duplicate rows, so all 8,760 rows we
 
 For modeling:
 - `date` and `hour` are combined into a single hourly `datetime` index.
-- Wind speed outliers are **clipped** to Tukey's fences (Q1 − 1.5·IQR, Q3 + 1.5·IQR) using `quartile_limits`, rather than dropped, so the hourly series has no gaps.
+- Wind speed outliers (above Tukey's upper fence of ≈ 4.4 m/s, found with `quartile_limits`; 161 hours) are **kept as-is**. Dropping them would leave gaps in the hourly series and break the lag features, and clipping them did not change model performance. SHAP later showed that these high-wind hours carry real signal (strong wind lowers demand).
 
 ## Key EDA Findings
 - Bike rentals are right-skewed.
@@ -62,17 +62,23 @@ For modeling:
 
 | Model | MAE | RMSE | R² |
 |---|---|---|---|
-| Linear Regression | 130.9 | 198.5 | 0.707 |
-| Random Forest | 53.5 | 76.0 | 0.957 |
-| **XGBoost (tuned)** | **49.2** | **67.6** | **0.966** |
+| Seasonal naive (same hour last week) | 126.3 | 205.5 | 0.686 |
+| Linear Regression | 130.9 | 198.4 | 0.707 |
+| Random Forest | 53.5 | 76.1 | 0.957 |
+| **XGBoost (tuned)** | **49.0** | **67.0** | **0.967** |
+
+Tuned XGBoost cuts the naive baseline's MAE by about 61%, while Linear Regression barely beats the baseline.
+
+Temperature and dew point were **not** combined with PCA: doing so without leakage during cross-validation would require a scikit-learn `Pipeline` (so the PCA is re-fit inside each fold), and tree models handle the correlated pair well.
 
 **SHAP interpretation (XGBoost):**
 - `lag_1` (previous hour's demand) is by far the most important feature, followed by `lag_2`, `solar_radiation`, `hour`, `lag_168`, and `lag_24`.
 - `hour` captures the commuting rush (7–8 AM and 5–6 PM boost the forecast; 9–10 AM pulls it down after the morning peak).
-- Warm temperatures raise demand and cold temperatures lower it, with the effect leveling off in extreme heat. Rainfall and high humidity reduce demand.
+- Temperatures below ~15 °C lower demand and warmer temperatures raise it, with the benefit shrinking above 30 °C. Rainfall, high humidity, and strong wind (above ~4 m/s) reduce demand.
 
 ## Limitations
 - The test set is a single week in late autumn. Other seasons may behave differently.
+- The CV RMSE used for tuning (≈ 270) is about 4× the test RMSE (≈ 67): the first time-series fold trains on winter only and must forecast much higher spring demand, which tree models cannot extrapolate to, and the test week has unusually low demand. The test score is likely optimistic for busier seasons.
 - Lag features use the previous hour's demand, so the models forecast one hour ahead.
 
 ## Next Steps
